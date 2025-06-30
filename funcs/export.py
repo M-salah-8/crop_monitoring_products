@@ -8,28 +8,9 @@ import pandas as pd
 import datetime
 import rasterio.mask
 from wapordl import wapor_map
+from .geo import GeoFunctions as gis
+from .time_periods import date_month, date_dekad, date_5days
 
-def date_dekad(date):
-  day = int(date.split("-")[-1])
-  if day < 11:
-    return date[:-2]+"01"
-  elif day < 21:
-    return date[:-2]+"11"
-  elif day < 32:
-    return date[:-2]+"21"
-  
-def dekad_days(date):
-  day = int(date.split("-")[-1])
-  if day == 1 or day == 11:
-    s_d = datetime.datetime.strptime(date, '%Y-%m-%d')
-    e_d = s_d + datetime.timedelta(days=10)
-    days = pd.date_range(s_d,e_d - datetime.timedelta(days=1),freq='d').astype(str)
-    return days
-  elif day == 21:
-    s_d = datetime.datetime.strptime(date, '%Y-%m-%d')
-    e_d = (s_d.replace(day=1) + datetime.timedelta(days=32)).replace(day=1)
-    days = pd.date_range(s_d,e_d - datetime.timedelta(days=1),freq='d').astype(str)
-    return days
 
 def export_gee_tifs_localy(image, data, data_name, output_folder, date, aoi):
     data_url = {
@@ -109,56 +90,6 @@ def download_WaPOR(region, variables, period, season_dr, overview = "NONE"):
       unit = "none"
 
     wapor_map(region, var, period, download_dr, seperate_unscale = True, unit_conversion = unit)
-
-def kc_tifs(season_dr):
-  wapor_pet = sorted(os.listdir(os.path.join(season_dr, "WaPOR_data", "L1-RET-E_resampled")))
-  dekads = sorted(os.listdir(season_dr, "dekads"))
-  for dekad in dekads:
-    tifs_dr = os.path.join(season_dr, "dekads", dekad, "ETa", "tifs")
-    if os.path.exists(tifs_dr):
-      tifs = glob.glob(tifs_dr + "/*.tif")
-      for et_tif in tifs:
-        date = os.path.basename(et_tif).split(".")[0].split("_")[1]
-        for pet in wapor_pet:
-          if date in pet:
-            print(pet)
-            pet_tif = os.path.join(season_dr, "WaPOR_data", "L1-RET-E_resampled", pet)
-            et_src = rasterio.open(et_tif)
-            et_arr = et_src.read(1)
-            pet_src = rasterio.open(pet_tif)
-            pet_arr = pet_src.read(1)
-            kc_arr = et_arr / pet_arr
-            os.makedirs(os.path.join(season_dr, "dekads", dekad, "kc", 'tifs'), exist_ok=True)
-            with rasterio.open(os.path.join(season_dr, "dekads", dekad, "kc", 'tifs', f'kc_{date}.tif'), 'w', **et_src.meta) as dst:
-                dst.write(kc_arr, 1)
-            break
-    else:
-      continue
-
-def dekads_tifs(season_dr, project_gdf):
-    dekads = sorted(os.listdir(os.path.join(season_dr, "dekads")))
-    project_df = pd.read_csv(os.path.join(season_dr, 'sheets', 'daily_data_0.csv'))
-    for dekad in dekads:
-        tifs_dr = os.path.join(season_dr, "dekads", dekad, "ETa", "tifs")
-        if os.path.exists(tifs_dr):
-            month_arrays_mean_sum = 0
-            tifs = glob.glob(tifs_dr + "/*.tif")
-            for eta_tif in tifs:
-                date = os.path.basename(eta_tif).split(".")[0].split("_")[1]
-                eta_src = rasterio.open(eta_tif)
-                eta_array = rasterio.mask.mask(eta_src, project_gdf.geometry, crop = True, nodata= np.nan)[0][0]
-                day_mean = project_df.loc[project_df['date'] == date, "ETa"].values[0]
-                array = eta_array / day_mean
-                month_arrays_mean_sum = month_arrays_mean_sum + array
-            month_arrays_mean = month_arrays_mean_sum / len(tifs)
-            days = dekad_days(dekad)
-            dekad_mean = 0
-            for day in days:
-                dekad_mean = dekad_mean + project_df.loc[project_df['date'] == day, "ETa"].values[0]
-            with rasterio.open(os.path.join(season_dr, "dekads", dekad, "ETa", f'{dekad}.tif'), 'w', **eta_src.meta) as dst:
-                dst.write(month_arrays_mean * dekad_mean, 1)
-        else:
-            continue
         
 def export_local_tifs(data_drs, season_dr, project_gdf):
   for data_dr in data_drs:
@@ -175,3 +106,57 @@ def export_local_tifs(data_drs, season_dr, project_gdf):
       os.makedirs(download_dr, exist_ok=True)
       with rasterio.open(os.path.join(download_dr, f'{data_name}_{date}.tif'), 'w', **meta) as dst:
         dst.write(pet_array)
+
+def results_to_5days(tifs_dir, output_dir, data_name, template, resampling):
+  gis_in = gis()
+  for tif_dir in tifs_dir:
+    file_name = os.path.basename(tif_dir).split(".")[0]
+    date = file_name.split("_")[1]
+    dst_date = date_5days(date)
+    out_dir = os.path.join(output_dir, dst_date, data_name)
+    os.makedirs(out_dir, exist_ok=True)
+    dst = os.path.join(out_dir, f"{file_name}.tif")
+    if not os.path.exists(dst):
+      array, meta = gis_in.coregister(template, tif_dir, dtype=np.float32, resampling= resampling)
+      gis_in.save_tif(array, meta, file_name, out_dir)
+    else:
+      print(f'{file_name} already exists')
+
+def results_to_dekad(tifs_dir, output_dir, data_name, template, resampling):
+  gis_in = gis()
+  for tif_dir in tifs_dir:
+    file_name = os.path.basename(tif_dir).split(".")[0]
+    date = file_name.split("_")[1]
+    dst_date = date_dekad(date)
+    out_dir = os.path.join(output_dir, dst_date, data_name)
+    os.makedirs(out_dir, exist_ok=True)
+    dst = os.path.join(out_dir, f"{file_name}.tif")
+    if not os.path.exists(dst):
+      array, meta = gis_in.coregister(template, tif_dir, dtype=np.float32, resampling= resampling)
+      gis_in.save_tif(array, meta, file_name, out_dir)
+    else:
+      print(f'{file_name} already exists')
+
+def results_to_month(tifs_dir, output_dir, data_name, template, resampling):
+  gis_in = gis()
+  for tif_dir in tifs_dir:
+    file_name = os.path.basename(tif_dir).split(".")[0]
+    date = file_name.split("_")[1]
+    dst_date = date_month(date)
+    out_dir = os.path.join(output_dir, dst_date, data_name)
+    os.makedirs(out_dir, exist_ok=True)
+    dst = os.path.join(out_dir, f"{file_name}.tif")
+    if not os.path.exists(dst):
+      array, meta = gis_in.coregister(template, tif_dir, dtype=np.float32, resampling= resampling)
+      gis_in.save_tif(array, meta, file_name, out_dir)
+    else:
+      print(f'{file_name} already exists')
+
+def product_to_results(tifs_dir, output_dir, data_name, time_period, template, resampling = "nearest"):
+  output_dir = os.path.join(output_dir, time_period)
+  if time_period == '5days':
+    results_to_5days(tifs_dir, output_dir, data_name, template, resampling)
+  elif time_period == 'dekad':
+    results_to_dekad(tifs_dir, output_dir, data_name, template, resampling)
+  elif time_period == 'month':
+    results_to_month(tifs_dir, output_dir, data_name, template, resampling)

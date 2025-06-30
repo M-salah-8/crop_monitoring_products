@@ -5,7 +5,7 @@ def ETp_list(season_dates, aoi):
     for i in range(len(season_dates)-1):
         ETp_day = ETp(season_dates[i], season_dates[i+1], aoi)
         ETp_list.append(ETp_day)
-    
+
     return ETp_list
 
 
@@ -74,7 +74,7 @@ def ETp(date1, date2, aoi):
         'actual_vapor_pressure' : ea,
         'temperature' : temp,
         'wind_speed': wind_speed}).rename('ETp')
-    
+
     #ADD BANDS
     ETp_mean = ETp.reduceRegion(
                     reducer = ee.Reducer.mean(),
@@ -82,5 +82,5 @@ def ETp(date1, date2, aoi):
                     scale = 30,
                     maxPixels = 9e14
                     ).getInfo()
-    
+
     return ETp_mean['ETp']
