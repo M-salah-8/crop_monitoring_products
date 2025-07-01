@@ -15,169 +15,141 @@
 #----------------------------------------------------------------------------------------#
 #----------------------------------------------------------------------------------------#
 
-#PYTHON PACKAGES
-import os
-import datetime
+from os.path import dirname, exists, join
+from os import makedirs, listdir
+from glob import glob
+from shutil import rmtree
+from datetime import datetime
+
 import rasterio
 import numpy as np
-import shutil
-import pickle
+# import pickle
 
-#FOLDERS
-from .masks import (f_cloudMaskL8_SR,f_albedoL_8_9)
+from .masks import f_cloudMaskL_8_9_SR, f_albedoL_8_9
 from .meteorology import get_meteorology
-from .tools import (fexp_spec_ind, fexp_lst_export,fexp_radlong_up, LST_DEM_correction,
-fexp_radshort_down, fexp_radlong_down, fexp_radbalance, fexp_soil_heat,fexp_sensible_heat_flux, co_dem)
+from .tools import (
+    fexp_spec_ind,
+    fexp_radlong_up,
+    lst_dem_correction,
+    fexp_radshort_down,
+    fexp_radlong_down,
+    fexp_radbalance,
+    fexp_soil_heat,
+    fexp_sensible_heat_flux,
+    co_dem,
+)
 from .endmembers import fexp_cold_pixel, fexp_hot_pixel
 from .evapotranspiration import fexp_et
-from .download_meteorology import download_era5_re_hourly
+from .download_meteorology import download_era5_hourly
 
-#IMAGE FUNCTION
-class Image_local():
 
-    #ENDMEMBERS DEFAULT
-    #ALLEN ET AL. (2013)
-    def __init__(self,
-                 image_dr,
-                 local_data_dr,
-                 results_dr,
-                 NDVI_cold=5,
-                 Ts_cold=20,
-                 NDVI_hot=10,
-                 Ts_hot=20):
-                #GET INFORMATIONS FROM IMAGE
-        self.image_dr = image_dr
-        self.local_data_dr = local_data_dr
-        self.ls_data_dr = os.path.split(image_dr)[0]
-        self.cal_bands_dr = os.path.join(self.image_dr, "calculated_bands")
-        os.makedirs(self.cal_bands_dr, exist_ok= True)
-        self.results_dr = results_dr
-        meta_names = ['LANDSAT_PRODUCT_ID', 'SPACECRAFT_ID', 'SUN_ELEVATION', 'CLOUD_COVER', 'SCENE_CENTER_TIME', 'DATE_ACQUIRED']
-        self.meta = {}
-        for file in os.listdir(self.image_dr):
-            if file.endswith('MTL.txt'):
-                    with open(os.path.join(self.image_dr, file), 'r') as file:
-                        for line in file:
-                            if any(meta_name in line for meta_name in meta_names):
-                                meta_name = line.split("=")[0].strip()
-                                self.meta[meta_name] = line.split("=")[1].strip().replace('"', '')
-                            if "LEVEL2_PROCESSING_RECORD" in line:
-                                break
-        #GET INFORMATIONS FROM IMAGE
-        # self.image = ee.Image(image)
-        self._index=self.meta['LANDSAT_PRODUCT_ID']
-        self.cloud_cover=float(self.meta['CLOUD_COVER'])
-        self.landsat_version=self.meta['SPACECRAFT_ID']
-        self.sun_elevation=float(self.meta['SUN_ELEVATION'])
-        utc_timestamp =f"{self.meta['DATE_ACQUIRED']} {self.meta['SCENE_CENTER_TIME'][:-2]}"
-        self.time_start=datetime.datetime.strptime(utc_timestamp, "%Y-%m-%d %H:%M:%S.%f")
-        self._year=self.time_start.year
-        self._month=self.time_start.month
-        self._day=self.time_start.day
-        self._hour=self.time_start.hour
-        self._minute = self.time_start.minute
-        self.date_string=self.meta['DATE_ACQUIRED']
+# IMAGE FUNCTION
 
-        #ENDMEMBERS
-        self.p_top_NDVI=NDVI_cold
-        self.p_coldest_Ts=Ts_cold
-        self.p_lowest_NDVI=NDVI_hot
-        self.p_hottest_Ts=Ts_hot
+# ENDMEMBERS DEFAULT
+# ALLEN ET AL. (2013)
 
-        #LANDSAT IMAGE
-        if self.landsat_version == 'LANDSAT_8':
-            bands = {'SR_B1': 'UB', 'SR_B2': 'B', 'SR_B3': 'GR', 'SR_B4': 'R',
-                     'SR_B5': 'NIR', 'SR_B6': 'SWIR_1', 'SR_B7': 'SWIR_2',
-                     'ST_B10': 'BRT', 'QA_PIXEL': 'pixel_qa'}
-            self.image = {}
-            for file in os.listdir(self.image_dr):
-                if any(band in file for band in bands):
-                    band_name = "_".join(file.split("_")[-2:]).split(".")[0]
-                    self.image[bands[band_name]] = os.path.join(self.image_dr, file)
-            self.ls_meta = rasterio.open(self.image['UB']).meta
-            self.ls_meta.update(dtype= np.float32, nodata= np.nan)
-            self.res = rasterio.open(self.image['UB']).res
-            #CLOUD REMOVAL
-            self.image=f_cloudMaskL8_SR(self.image, self.cal_bands_dr)
+def sebal_local(
+    image_dir: str,
+    local_data_dr: str,
+    results_dr: str,
+    p_top_NDVI: int = 5,
+    p_coldest_Ts: int = 20,
+    p_lowest_NDVI: int = 10,
+    p_hottest_Ts: int = 20,
+) -> None:
 
-            # ALBEDO TASUMI ET AL. (2008) METHOD WITH KE ET AL. (2016) COEFFICIENTS
-            self.image=f_albedoL_8_9(self.image, self.ls_meta, self.cal_bands_dr)
+    # get image information
+    local_data_dr = local_data_dr
+    date_dir = dirname(image_dir)
+    cal_bands_dr = join(image_dir, "calculated_bands")
+    if exists(cal_bands_dr):
+        rmtree(cal_bands_dr)
+    makedirs(cal_bands_dr, exist_ok= True)
+    results_dr = results_dr
+    meta_names = ["LANDSAT_PRODUCT_ID", "SPACECRAFT_ID", "SUN_ELEVATION", "CLOUD_COVER", "SCENE_CENTER_TIME", "DATE_ACQUIRED"]
+    meta: dict[str, str] = {}
+    txt_meta: str | None = next(
+        (file for file in glob(join(image_dir, "*")) if file.endswith("MTL.txt")), None
+    )
+    assert txt_meta is not None, "MTL.txt file dose not exists"
+    with open(join(image_dir, txt_meta), "r") as file:
+        for line in file:
+            if any(meta_name in line for meta_name in meta_names):
+                meta_name = line.split("=")[0].strip()
+                meta[meta_name] = line.split("=")[1].strip().replace('"', '')
+            if "LEVEL2_PROCESSING_RECORD" in line:
+                break
+    # _index=meta['LANDSAT_PRODUCT_ID']
+    # cloud_cover=float(meta['CLOUD_COVER'])
+    landsat_version = meta['SPACECRAFT_ID']
+    sun_elevation = float(meta['SUN_ELEVATION'])
+    utc_timestamp = f"{meta['DATE_ACQUIRED']} {meta['SCENE_CENTER_TIME'][:-2]}"
+    time_start = datetime.strptime(utc_timestamp, "%Y-%m-%d %H:%M:%S.%f")
+    date_string = meta['DATE_ACQUIRED']
 
-        elif self.landsat_version == 'LANDSAT_9':
-            bands = {'SR_B1': 'UB', 'SR_B2': 'B', 'SR_B3': 'GR', 'SR_B4': 'R',
-                     'SR_B5': 'NIR', 'SR_B6': 'SWIR_1', 'SR_B7': 'SWIR_2',
-                     'ST_B10': 'BRT', 'QA_PIXEL': 'pixel_qa'}
-            self.image = {}
-            for file in os.listdir(self.image_dr):
-                if any(band in file for band in bands):
-                    band_name = "_".join(file.split("_")[-2:]).split(".")[0]
-                    self.image[bands[band_name]] = os.path.join(self.image_dr, file)
-            self.ls_meta = rasterio.open(self.image['UB']).meta
-            self.ls_meta.update(dtype= np.float32, nodata= np.nan)
-            self.res = rasterio.open(self.image['UB']).res
-            #CLOUD REMOVAL
-            self.image=f_cloudMaskL8_SR(self.image, self.cal_bands_dr)
+    # LANDSAT IMAGE
+    if landsat_version in ["LANDSAT_8", "LANDSAT_9"]:
+        bands = {"SR_B1": "UB", "SR_B2": "B", "SR_B3": "GR", "SR_B4": "R",
+                    "SR_B5": "NIR", "SR_B6": "SWIR_1", "SR_B7": "SWIR_2",
+                    "ST_B10": "BRT", "QA_PIXEL": "pixel_qa"}
+        image: dict[str, str] = {}
+        for file in listdir(image_dir):
+            if any(band in file for band in bands):
+                band_name = "_".join(file.split("_")[-2:]).split(".")[0]
+                image[bands[band_name]] = join(image_dir, file)
+        ls_meta = rasterio.open(image["UB"]).meta
+        ls_meta.update(dtype= np.float32, nodata= np.nan)
+        res: tuple[float, float] = rasterio.open(image["UB"]).res
+        # CLOUD REMOVAL
+        f_cloudMaskL_8_9_SR(image, cal_bands_dr)
 
-            # ALBEDO TASUMI ET AL. (2008) METHOD WITH KE ET AL. (2016) COEFFICIENTS
-            self.image=f_albedoL_8_9(self.image, self.ls_meta, self.cal_bands_dr)
+        # ALBEDO TASUMI ET AL. (2008) METHOD WITH KE ET AL. (2016) COEFFICIENTS
+        f_albedoL_8_9(image, ls_meta, cal_bands_dr)
 
-        else:
-            print('version error')
+    else:
+        print(f"This version is not supported: {landsat_version}")
+        return
 
-        # METEOROLOGY PARAMETERS
-        download_era5_re_hourly(self.image['UB'], self.time_start)
-        col_meteorology= get_meteorology(self.image, self.time_start, self.ls_data_dr, self.cal_bands_dr, self.ls_meta)
+    # METEOROLOGY PARAMETERS
+    download_era5_hourly(image["UB"], date_dir, time_start)
+    t_air, ux, ur, rn24hobs = get_meteorology(image, time_start, date_dir, cal_bands_dr, ls_meta)
 
-        #AIR TEMPERATURE [C]
-        self.T_air = col_meteorology['AIRT_G']
+    # SRTM DATA ELEVATION
+    srtm_elevation = join(local_data_dr, "strm_30m.tif")
+    assert exists(srtm_elevation), "elevation file was not found"
+    z_alt = co_dem(ls_meta.copy(), res, srtm_elevation, date_dir)
 
-        #WIND SPEED [M S-1]
-        self.ux= col_meteorology['UX_G']
+    # SPECTRAL IMAGES (NDVI, EVI, SAVI, LAI, T_LST, e_0, e_NB, long, lat)
+    fexp_spec_ind(image, ls_meta, cal_bands_dr, results_dr, date_string)
 
-        #RELATIVE HUMIDITY [%]
-        self.UR = col_meteorology['RH_G']
+    # LAND SURFACE TEMPERATURE
+    lst_dem_correction(image, z_alt, t_air, ur, sun_elevation, time_start, time_start.hour,time_start.minute, ls_meta, cal_bands_dr)
 
-        #NET RADIATION 24H [W M-2]
-        self.Rn24hobs = col_meteorology['RN24H_G']
+    # COLD PIXEL
+    _, n_Ts_cold = fexp_cold_pixel(image, p_top_NDVI, p_coldest_Ts)
 
-        #SRTM DATA ELEVATION
-        SRTM_ELEVATION = os.path.join(self.local_data_dr, 'strm_30m.tif')
-        self.z_alt = co_dem(self.ls_meta.copy(), self.res, SRTM_ELEVATION, self.ls_data_dr)
+    # INSTANTANEOUS OUTGOING LONG-WAVE RADIATION [W M-2]
+    fexp_radlong_up(image, cal_bands_dr, ls_meta)
 
-        # SPECTRAL IMAGES (NDVI, EVI, SAVI, LAI, T_LST, e_0, e_NB, long, lat)
-        self.image=fexp_spec_ind(self.image, self.ls_meta, self.cal_bands_dr, self.results_dr, self.date_string)
+    # INSTANTANEOUS INCOMING SHORT-WAVE RADIATION [W M-2]
+    fexp_radshort_down(image, z_alt, t_air,ur, sun_elevation, time_start, ls_meta, cal_bands_dr)
 
-        #LAND SURFACE TEMPERATURE
-        self.image=LST_DEM_correction(self.image, self.z_alt, self.T_air, self.UR,self.sun_elevation,self.time_start, self._hour,self._minute, self.ls_meta, self.cal_bands_dr)
+    # INSTANTANEOUS INCOMING LONGWAVE RADIATION [W M-2]
+    fexp_radlong_down(image,  n_Ts_cold, cal_bands_dr, ls_meta)
 
-        #COLD PIXEL
-        self.d_cold_pixel=fexp_cold_pixel(self.image, self.p_top_NDVI, self.p_coldest_Ts)
+    # INSTANTANEOUS NET RADIATON BALANCE [W M-2]
+    fexp_radbalance(image, cal_bands_dr, ls_meta)
 
-        #COLD PIXEL NUMBER
-        self.n_Ts_cold = self.d_cold_pixel['temp']
+    # SOIL HEAT FLUX (G) [W M-2]
+    fexp_soil_heat(image, cal_bands_dr, ls_meta)
 
-        # INSTANTANEOUS OUTGOING LONG-WAVE RADIATION [W M-2]
-        self.image=fexp_radlong_up(self.image, self.cal_bands_dr, self.ls_meta)
+    # HOT PIXEL
+    d_hot_pixel=fexp_hot_pixel(image, p_lowest_NDVI, p_hottest_Ts)
 
-        #INSTANTANEOUS INCOMING SHORT-WAVE RADIATION [W M-2]
-        self.image=fexp_radshort_down(self.image,self.z_alt,self.T_air,self.UR, self.sun_elevation, self.time_start,self.ls_meta, self.cal_bands_dr)
+    # SENSIBLE HEAT FLUX (H) [W M-2]
+    fexp_sensible_heat_flux(image, ux, n_Ts_cold, d_hot_pixel, cal_bands_dr, ls_meta)
 
-        #INSTANTANEOUS INCOMING LONGWAVE RADIATION [W M-2]
-        self.image=fexp_radlong_down(self.image,  self.n_Ts_cold, self.cal_bands_dr, self.ls_meta)
+    # DAILY EVAPOTRANSPIRATION (ET_24H) [MM DAY-1]
+    fexp_et(image, rn24hobs, cal_bands_dr, ls_meta, results_dr, date_string)
 
-        #INSTANTANEOUS NET RADIATON BALANCE [W M-2]
-        self.image=fexp_radbalance(self.image, self.cal_bands_dr, self.ls_meta)
-
-        #SOIL HEAT FLUX (G) [W M-2]
-        self.image=fexp_soil_heat(self.image, self.cal_bands_dr, self.ls_meta)
-
-        #HOT PIXEL
-        self.d_hot_pixel=fexp_hot_pixel(self.image, self.p_lowest_NDVI, self.p_hottest_Ts)
-
-        #SENSIBLE HEAT FLUX (H) [W M-2]
-        self.image=fexp_sensible_heat_flux(self.image, self.ux, self.UR,self.Rn24hobs,self.n_Ts_cold, self.d_hot_pixel, self.cal_bands_dr, self.ls_meta)
-
-        #DAILY EVAPOTRANSPIRATION (ET_24H) [MM DAY-1]
-        self.image=fexp_et(self.image, self.Rn24hobs, self.cal_bands_dr, self.ls_meta, self.results_dr, self.date_string)
-
-        shutil.rmtree(self.cal_bands_dr)
+    rmtree(cal_bands_dr)

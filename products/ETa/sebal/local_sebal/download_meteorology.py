@@ -1,23 +1,22 @@
+from os.path import join, exists
+from datetime import datetime, timedelta
+
 import rasterio
 import rasterio.warp
-import datetime
-import os
-
 import cdsapi
 
-def download_era5_re_hourly(tif_dr, date):
-    image_dr = os.path.dirname(tif_dr)
-    image_dr = os.path.dirname(image_dr)
-    era5_file = os.path.join(image_dr, 'era5-hourly.grib')
-    if os.path.exists(era5_file):
+
+def download_era5_hourly(reference_tif: str, metero_dir: str, date: datetime) -> None:
+    era5_file = join(metero_dir, "era5-hourly.grib")
+    if exists(era5_file):
         print("-----------era5 data already exists-----------")
     else:
         print("-----------downloading era5 data-----------")
-        previous_day = date - datetime.timedelta(days=1)
+        previous_day = date - timedelta(days=1)
         year = [date.year.__str__()]
         months = [date.month.__str__().zfill(2)]
         days = [previous_day.day.__str__().zfill(2), date.day.__str__().zfill(2)]
-        src = rasterio.open(tif_dr)
+        src = rasterio.open(reference_tif)
         bbox = rasterio.warp.transform_bounds(src.crs, 'EPSG:4326', *src.bounds)
         bounds = int(bbox[3]+1), int(bbox[0]), int(bbox[1]), int(bbox[2]+1)
 
@@ -40,8 +39,11 @@ def download_era5_re_hourly(tif_dr, date):
             'data_format': 'grib',
             'download_format': 'unarchived',
             'variable': [
-                    '10m_u_component_of_wind', '10m_v_component_of_wind', '2m_dewpoint_temperature',
-                    '2m_temperature', 'surface_solar_radiation_downwards',
+                '10m_u_component_of_wind',
+                '10m_v_component_of_wind',
+                '2m_dewpoint_temperature',
+                '2m_temperature',
+                'surface_solar_radiation_downwards',
                 ],
             'area': bounds
         }

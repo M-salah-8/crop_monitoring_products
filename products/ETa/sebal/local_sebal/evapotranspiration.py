@@ -18,41 +18,46 @@
 #PYTHON PACKAGES
 #Call EE
 # import ee
+from os import makedirs
+from os.path import join
+
 import rasterio
 import numpy as np
-import os
+from numpy.typing import NDArray
 
-def save_data(image, output_dr, meta, array, name):
-    with rasterio.open(os.path.join(output_dr, f'{name.lower()}.tif'), 'w', **meta) as dst:
-        dst.write(array, 1)
-    image[name.upper()] = os.path.join(output_dr, f'{name.lower()}.tif')
+from .funcs import save_to_image
 
-def fexp_et(image, Rn24hobs, cal_bands_dr, meta, results_dr, date_string):
-    image_mask = np.load(image['MASK'])
-    bands = ['RN', 'G', 'T_LST_DEM', 'H']
-    arrays = {}
+
+def fexp_et(
+    image: dict[str, str],
+    rn24hobs: str,
+    cal_bands_dr: str,
+    meta: dict,
+    results_dr: str,
+    date_string: str,
+) -> None:
+    image_mask: NDArray[np.bool_] = np.load(image["MASK"])
+    arrays: dict[str, NDArray[np.float32]] = {}
+    bands = ["RN", "G", "T_LST_DEM", "H"]
+    array = None
     for band in bands:
-        src = rasterio.open(image[band])
-        array = src.read(1).astype(np.float32)
-        array[image_mask] = np.nan
-        arrays[band] = array.copy()
-    src = rasterio.open(Rn24hobs)
-    array = src.read(1).astype(np.float32)
-    array[image_mask] = np.nan
-    arrays['RN24H_G'] = array.copy()
-
+        with rasterio.open(image[band]) as src:
+            array = src.read(1).astype(np.float32)
+            array[image_mask] = np.nan
+            arrays[band] = array.copy()
+    del array
     #NET DAILY RADIATION (Rn24h) [W M-2]
     #BRUIN (1982)
-    src = rasterio.open(Rn24hobs)
-    array = src.read(1).astype(np.float32)
-    array[image_mask] = np.nan
-    Rn24hobs = array.copy() * 1
+    with rasterio.open(rn24hobs) as src:
+        rn24hobs_array = src.read(1).astype(np.float32)
+        rn24hobs_array[image_mask] = np.nan
+        rn24hobs_array = rn24hobs_array * 1
 
     #GET ENERGY FLUXES VARIABLES AND LST
-    i_Rn = arrays['RN']
-    i_G = arrays['G']
-    i_lst = arrays['T_LST_DEM']
-    i_H_final = arrays['H']
+    i_Rn = arrays["RN"]
+    i_G = arrays["G"]
+    i_lst = arrays["T_LST_DEM"]
+    i_H_final = arrays["H"]
 
     #FILTER VALUES
     i_H_final[i_H_final < 0]= 0
@@ -60,7 +65,7 @@ def fexp_et(image, Rn24hobs, cal_bands_dr, meta, results_dr, date_string):
     # INSTANTANEOUS LATENT HEAT FLUX (LE) [W M-2]
     #BASTIAANSSEN ET AL. (1998)
     i_lambda_ET = i_Rn-i_G-i_H_final
-    save_data(image, cal_bands_dr, meta, i_lambda_ET, 'LE')
+    save_to_image(image, cal_bands_dr, meta, i_lambda_ET, "LE")
     #FILTER
     i_lambda_E= np.where(i_lambda_ET < 0, 0, i_lambda_ET)
     del(i_lambda_E)
@@ -72,20 +77,19 @@ def fexp_et(image, Rn24hobs, cal_bands_dr, meta, results_dr, date_string):
 
     #INSTANTANEOUS ET (ET_inst) [MM H-1]
     i_ET_inst = 0.0036 * (i_lambda_ET/i_lambda)
-    save_data(image, cal_bands_dr, meta, i_ET_inst, 'ET_INST')
+    save_to_image(image, cal_bands_dr, meta, i_ET_inst, "ET_INST")
 
     #EVAPORATIVE FRACTION (EF)
     #CRAGO (1996)
     i_EF = i_lambda_ET/(i_Rn-i_G)
-    save_data(image, cal_bands_dr, meta, i_EF, 'EF')
+    save_to_image(image, cal_bands_dr, meta, i_EF, "EF")
 
     #DAILY EVAPOTRANSPIRATION (ET_24h) [MM DAY-1]
-    i_ET24h_calc = (0.0864 *i_EF * Rn24hobs)/(i_lambda)
-    save_data(image, cal_bands_dr, meta, i_ET24h_calc, 'ET_24h')
-    output_dr = os.path.join(results_dr, 'eta')
-    os.makedirs(output_dr, exist_ok=True)
-    save_data(image, output_dr, meta, i_ET24h_calc, f'eta_{date_string}')
+    i_ET24h_calc = (0.0864 *i_EF * rn24hobs_array)/(i_lambda)
+    save_to_image(image, cal_bands_dr, meta, i_ET24h_calc, "ET_24h")
+    output_dr = join(results_dr, "eta")
+    makedirs(output_dr, exist_ok=True)
+    save_to_image(image, output_dr, meta, i_ET24h_calc, f"eta_{date_string}")
 
     #ADD BANDS
-    del(arrays, i_ET24h_calc, i_EF, i_ET_inst, i_lambda, i_lambda_ET, i_H_final, i_lst, Rn24hobs, i_G, i_Rn)
-    return image
+    del(arrays, i_ET24h_calc, i_EF, i_ET_inst, i_lambda, i_lambda_ET, i_H_final, i_lst, rn24hobs_array, i_G, i_Rn)
