@@ -61,7 +61,7 @@ def fexp_spec_ind(
     rgb_meta = meta.copy()
     rgb_meta.update(count=3, dtype="uint8", nodata=0)
     makedirs(join(results_dr, "rgb"), exist_ok=True)
-    with rasterio.open(join(results_dr, "rgb", f"rgb_{date_string}.tif"), "w", **rgb_meta) as dst:
+    with rasterio.open(join(results_dr, "rgb", f"{date_string}.tif"), "w", **rgb_meta) as dst:
         dst.write(rgb)
     del(rgb, rgb_meta)
 
@@ -70,7 +70,7 @@ def fexp_spec_ind(
     save_to_image(image, cal_bands_dr, meta, ndvi, "ndvi")
     output_dr = join(results_dr, "ndvi")
     makedirs(output_dr, exist_ok=True)
-    save_to_image(image, output_dr, meta, ndvi, f"ndvi_{date_string}")
+    save_to_image(image, output_dr, meta, ndvi, date_string)
 
     #ENHANCED VEGETATION INDEX (EVI)
     evi = 2.5 * (

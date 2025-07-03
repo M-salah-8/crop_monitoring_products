@@ -89,7 +89,7 @@ def fexp_et(
     save_to_image(image, cal_bands_dr, meta, i_ET24h_calc, "ET_24h")
     output_dr = join(results_dr, "eta")
     makedirs(output_dr, exist_ok=True)
-    save_to_image(image, output_dr, meta, i_ET24h_calc, f"eta_{date_string}")
+    save_to_image(image, output_dr, meta, i_ET24h_calc, date_string)
 
     #ADD BANDS
     del(arrays, i_ET24h_calc, i_EF, i_ET_inst, i_lambda, i_lambda_ET, i_H_final, i_lst, rn24hobs_array, i_G, i_Rn)
