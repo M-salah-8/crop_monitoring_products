@@ -52,10 +52,10 @@ def sebal_local(
     image_dir: str,
     local_data_dr: str,
     results_dr: str,
-    p_top_NDVI: int = 5,
-    p_coldest_Ts: int = 20,
-    p_lowest_NDVI: int = 10,
-    p_hottest_Ts: int = 20,
+    p_top_NDVI: int = 1,
+    p_coldest_Ts: int = 1,
+    p_lowest_NDVI: int = 1,
+    p_hottest_Ts: int = 1,
 ) -> None:
 
     # get image information
@@ -85,7 +85,7 @@ def sebal_local(
     sun_elevation = float(meta['SUN_ELEVATION'])
     utc_timestamp = f"{meta['DATE_ACQUIRED']} {meta['SCENE_CENTER_TIME'][:-2]}"
     time_start = datetime.strptime(utc_timestamp, "%Y-%m-%d %H:%M:%S.%f")
-    date_string = meta['DATE_ACQUIRED']
+    date_string = meta['DATE_ACQUIRED'].replace("_", "-")
 
     # LANDSAT IMAGE
     if landsat_version in ["LANDSAT_8", "LANDSAT_9"]:
