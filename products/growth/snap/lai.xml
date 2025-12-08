@@ -1,0 +1,92 @@
+<graph id="Graph">
+  <version>1.0</version>
+  <node id="Read">
+    <operator>Read</operator>
+    <sources/>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <useAdvancedOptions>false</useAdvancedOptions>
+      <file>input.SAFE.zip</file>
+      <copyMetadata>true</copyMetadata>
+      <bandNames/>
+      <pixelRegion>0,0,10980,10980</pixelRegion>
+      <maskNames/>
+    </parameters>
+  </node>
+  <node id="Subset">
+    <operator>Subset</operator>
+    <sources>
+      <sourceProduct refid="Read"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <sourceBands>B3,B4,B8,view_zenith_mean,view_azimuth_mean,sun_zenith,sun_azimuth</sourceBands>
+      <tiePointGrids/>
+      <region>0,0,10980,10980</region>
+      <referenceBand>B3</referenceBand>
+      <geoRegion/>
+      <subSamplingX>1</subSamplingX>
+      <subSamplingY>1</subSamplingY>
+      <fullSwath>false</fullSwath>
+      <vectorFile/>
+      <polygonRegion/>
+      <copyMetadata>true</copyMetadata>
+    </parameters>
+  </node>
+  <node id="Resample">
+    <operator>Resample</operator>
+    <sources>
+      <sourceProduct refid="Subset"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <referenceBand>B3</referenceBand>
+      <targetWidth/>
+      <targetHeight/>
+      <targetResolution/>
+      <upsampling>Nearest</upsampling>
+      <downsampling>First</downsampling>
+      <flagDownsampling>First</flagDownsampling>
+      <resamplingPreset/>
+      <bandResamplings/>
+      <resampleOnPyramidLevels>true</resampleOnPyramidLevels>
+    </parameters>
+  </node>
+  <node id="Biophysical10mOp">
+    <operator>Biophysical10mOp</operator>
+    <sources>
+      <sourceProduct refid="Resample"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <sensor>S2A_10m</sensor>
+      <computeLAI>true</computeLAI>
+      <computeFapar>false</computeFapar>
+      <computeFcover>false</computeFcover>
+    </parameters>
+  </node>
+  <node id="Write">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="Biophysical10mOp"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>output.tif</file>
+      <formatName>GeoTIFF</formatName>
+    </parameters>
+  </node>
+  <applicationData id="Presentation">
+    <Description/>
+    <node id="Read">
+            <displayPosition x="37.0" y="134.0"/>
+    </node>
+    <node id="Subset">
+      <displayPosition x="156.0" y="134.0"/>
+    </node>
+    <node id="Biophysical10mOp">
+      <displayPosition x="386.0" y="134.0"/>
+    </node>
+    <node id="Resample">
+      <displayPosition x="265.0" y="134.0"/>
+    </node>
+    <node id="Write">
+            <displayPosition x="617.0" y="134.0"/>
+    </node>
+  </applicationData>
+</graph>

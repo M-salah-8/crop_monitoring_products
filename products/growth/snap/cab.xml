@@ -1,0 +1,52 @@
+<graph id="Graph">
+  <version>1.0</version>
+  <node id="Read">
+    <operator>Read</operator>
+    <sources/>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <useAdvancedOptions>false</useAdvancedOptions>
+      <file>input.SAFE.zip</file>
+      <copyMetadata>true</copyMetadata>
+      <bandNames/>
+      <pixelRegion>0,0,10980,10980</pixelRegion>
+      <maskNames/>
+    </parameters>
+  </node>
+  <node id="BiophysicalOp">
+    <operator>BiophysicalOp</operator>
+    <sources>
+      <sourceProduct refid="Read"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <sensor>S2A</sensor>
+      <resolution>20</resolution>
+      <computeLAI>false</computeLAI>
+      <computeFapar>false</computeFapar>
+      <computeFcover>false</computeFcover>
+      <computeCab>true</computeCab>
+      <computeCw>false</computeCw>
+    </parameters>
+  </node>
+  <node id="Write">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="BiophysicalOp"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>output.tif</file>
+      <formatName>GeoTIFF</formatName>
+    </parameters>
+  </node>
+  <applicationData id="Presentation">
+    <Description/>
+    <node id="Read">
+            <displayPosition x="37.0" y="134.0"/>
+    </node>
+    <node id="BiophysicalOp">
+      <displayPosition x="403.0" y="134.0"/>
+    </node>
+    <node id="Write">
+            <displayPosition x="581.0" y="134.0"/>
+    </node>
+  </applicationData>
+</graph>

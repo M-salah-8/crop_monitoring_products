@@ -128,11 +128,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-areas/
-data/
-inputs.csv/
-local_data/
-tests and backups/
-.cdsapirc
-self_col_meteorology.pkl
-self_image.pkl
+inputs.csv
+data
+output
+tests_and_backups

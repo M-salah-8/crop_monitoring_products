@@ -1,59 +1,91 @@
-from os.path import basename
+from os.path import basename, join, exists
+from glob import glob
+from datetime import datetime
 
 import numpy as np
 import rasterio
 from rasterio.windows import from_bounds
-from pandas import DataFrame
-from geopandas import GeoDataFrame
+from pandas import DataFrame, date_range, DatetimeIndex
+from geopandas import GeoDataFrame, read_file
 
 
-def fill_missing(daily_df: DataFrame, data_name: str) -> None:
-    daily_df.at[0,data_name] = daily_df.at[daily_df[data_name].first_valid_index(), data_name]
-    # daily_df.at[0,data_name] = 0
-    daily_df[data_name] = daily_df[data_name].interpolate('linear')
-    # daily_df[data_name] = daily_df[data_name].interpolate(method='polynomial', order=3)
-    # daily_df.fillna(method='ffill')
+def fill_missing(dfs: dict[str, DataFrame], ids: list) -> None:
+    for df_name, df in dfs.items():
+        if df_name == "eta":
+            continue
+        for id in ids:
+            id = str(id)
+            df.at[0,id] = df.at[df[id].first_valid_index(), id]
+            # df.at[0,id] = 0
+            df[id] = df[id].interpolate('linear')
+            # df[id] = df[id].interpolate(method='polynomial', order=3)
+            # df.fillna(method='ffill')
+    if "eta" in dfs and "kc" in dfs and "etp" in dfs:
+        for id in ids:
+            id = str(id)
+            dfs["eta"][id] = dfs["kc"][id] * dfs["etp"][id]
 
 
-def write_df_field(
-    field_gdf: GeoDataFrame,
-    name_attribute: str,
-    df: DataFrame,
-    tifs_dir: str,
-    data_name: str,
-) -> DataFrame:
-    with rasterio.open(tifs_dir[0]) as src:
-        field_gdf = field_gdf.to_crs(src.crs)
-    for _, row in field_gdf.iterrows():
-        field = row[name_attribute]
-        for tif_dir in tifs_dir:
-            date = basename(tif_dir).split(".")[0].split("_")[1]
-            with rasterio.open(tif_dir) as src:
-                array = rasterio.mask.mask(
-                    src, [row.geometry], crop=True, nodata=np.nan
-                )[0][0]
-                df.loc[df["date"] == date, f"{data_name}_{field}"] = np.nanmean(array)
+def creat_date_df(initial_date: str, final_date: str) -> DatetimeIndex:
+    try:    # TODO: validate first date not later than final date
+        initial_datetime = datetime.strptime(initial_date, "%Y-%m-%d")
+        final_datetime = datetime.strptime(final_date, "%Y-%m-%d")
+    except ValueError as e:
+        print(str(e))
+        exit()
+
+    # convert to strings
+    daily_dates = date_range(
+        start=initial_datetime, end=final_datetime, freq="D"
+    )
+    return daily_dates
+
+
+def fill_df(product_dir: str, dates: DatetimeIndex, ids: list[int]) -> DataFrame:
+    template_gpkg = next((gpkg for gpkg in glob(join(product_dir, "*.gpkg"))), None)
+    assert template_gpkg is not None
+    gdf = read_file(template_gpkg)
+    product_ids: list[int] = gdf["id"].values.tolist()
+    assert product_ids == ids
+    df = DataFrame({"date": dates})
+    for id in ids:
+        df[str(id)] = np.nan
+    for date in dates:
+        gpkg = join(product_dir, f"{date.strftime("%Y-%m-%d")}.gpkg")
+        if exists(gpkg):
+            gdf = read_file(gpkg)
+            for id in ids:
+                shape_value: float = gdf.loc[gdf["id"] == id, "stats_median"].values[0]
+                df.loc[df["date"] == date, str(id)] = shape_value
+
     return df
 
 
-def write_df_project(
-    project_gdf: GeoDataFrame, df: DataFrame, tifs_dir: str, data_name: str
-) -> DataFrame:
-    with rasterio.open(tifs_dir[0]) as src:
-        project_gdf = project_gdf.to_crs(src.crs)
-    for tif_dir in tifs_dir:
-        date = basename(tif_dir).split(".")[0].split("_")[1]
-        with rasterio.open(tif_dir) as src:
-            array = src.read(1, window=from_bounds(*project_gdf.total_bounds, transform=src.transform))
-        df.loc[df['date'] == date, f"{data_name}"] = np.nanmean(array)
-    return df
+def kc_df(dfs: dict[str, DataFrame], ids: list) -> None:
+    dfs["kc"] = dfs["eta"].copy()
+    for id in ids:
+        id = str(id)
+        dfs["kc"][id] = dfs["eta"][id] / dfs["etp"][id]
 
 
-def fill_et_df(df) -> None:
-    # get all columns that starts with kc
-    kc_columns = [column for column in df.columns if column.startswith('kc')]
-    for kc_column in kc_columns:
-        fill_missing(df, kc_column)
-        eta_column = kc_column.replace('kc', 'eta')
-        etp_column = kc_column.replace('kc', 'etp')
-        df[eta_column] = df[etp_column] * df[kc_column]
+def products_dfs(
+    initial_date: str,
+    final_date: str,
+    products: dict[str, str],
+) -> dict[str, DataFrame]:
+    dfs: dict[str, DataFrame] = {}
+    first_product = next(iter(products.values()), "")
+    template_gpkg = next((gpkg for gpkg in glob(join(first_product, "*.gpkg"))), None)
+    assert template_gpkg is not None
+    gdf = read_file(template_gpkg)
+    ids: list[int] = gdf["id"].values.tolist()
+    dates = creat_date_df(initial_date, final_date)
+    for product_name, product_dir in products.items():
+        df = fill_df(product_dir, dates, ids)
+        dfs[product_name] = df
+    if "eta" in dfs and "etp" in dfs:
+        kc_df(dfs, ids)
+
+    fill_missing(dfs, ids)
+
+    return dfs
