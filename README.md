@@ -1,3 +1,6 @@
+# Disclaimer
+* This code is for educational purposes and should not be used in production environments as it is untested.
+
 # new version
 * The project is now "Crop Monitoring" (will rename the repo later)
 * Currently, the project consists of a few products, but it will grow in the future.
