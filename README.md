@@ -2,8 +2,8 @@
 * This code is for educational purposes and should not be used in production environments as it is untested.
 
 # new version
-* The project is now "Crop Monitoring" (will rename the repo later)
 * Currently, the project consists of a few products, but it will grow in the future.
+* Currently focusing on local_sebal package with minor updates to other products.
 * Analysis and visualisation will be improved upon and added again later.
 
 # products
@@ -30,6 +30,10 @@ outputs:
 
 ## [WaPOR data](https://www.fao.org/in-action/remote-sensing-for-water-productivity/en)
 FAO’s portal to monitor Water Productivity through Open access of Remotely (WaPOR) sensed derived data, monitors and reports on agriculture water productivity over Africa and the Near East.
+
+## [SEN-ET](docs/set-et.md)
+* New.
+* Not documented yet.
 
 # Folders layout
 ```bash
@@ -81,10 +85,6 @@ FAO’s portal to monitor Water Productivity through Open access of Remotely (Wa
 │   └── README.md
 └─────────────────────┘
 ```
-
-## [SEN-ET](docs/set-et.md)
-* New.
-* Not documented yet.
 
 ### contact:
 Mohammed Salah (mohammedalmak98@gmail.com)  
