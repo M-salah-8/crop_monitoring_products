@@ -34,11 +34,13 @@ FAO’s portal to monitor Water Productivity through Open access of Remotely (Wa
 # Folders layout
 ```bash
 ┌─── project_folder ───┐
-│   ├── area
-│   │   ├── project.geojson
-│   │   ├── project_field.shp
-│   │   └── project_RET.geojson
-│   ├── local_data
+│   ├── data
+│   │   ├── areas
+│   │   │   ├── project
+│   │   │  ...  ├── aoi.geojson
+│   │   │       ├── field.shp
+│   │   │       └── ret.geojson
+|   │   │
 │   │   ├── landsat
 │   │   │   └── images
 |   │   │       ├── 2024-06-17
@@ -46,17 +48,36 @@ FAO’s portal to monitor Water Productivity through Open access of Remotely (Wa
 |   │   │       ├── 2024-07-11
 |   │   │       |   └── C08_L2SP_173048_20240711_20240719_02_T1
 |   │   │      ...
-|   │   │      
+|   │   │
 │   │   ├── sentinel_2
-|   │   │   ├── 2023_11_04
-|   │   │   |   └── S2B_MSIL2A_20231104T083029_N0509_R021_T35QRA_20231104T101901.SAFE.zip
-|   │   │   ├── 2023_11_14
-|   │   │   |   └── S2B_MSIL2A_20231114T083119_N0509_R021_T35QRA_20231114T102315.SAFE.zip
-|   │   │  ...
+│   │   │   └── images
+|   │   │       ├── 2023_11_04
+|   │   │       |   └── S2B_MSIL2A_20231104T083029_N0509_R021_T35QRA_20231104T101901.SAFE.zip
+|   │   │       ├── 2023_11_14
+|   │   │       |   └── S2B_MSIL2A_20231114T083119_N0509_R021_T35QRA_20231114T102315.SAFE.zip
+|   │   │      ...
+|   │   │
+│   │   ├── sentinel_3
+│   │   │   └── images
+|   │   │       ├── 2023_12_14
+|   │   │       |   └── S3A_SL_2_LST..._PS1_O_NT_004.SEN3
+|   │   │       ├── 2023_12_24
+|   │   │       |   └── S3B_SL_2_LST..._PS2_O_NT_004.SEN3
+|   │   │      ...
+|   │   │
 |   │   │
 |   │   └── strm_30m.tif
-|   │   
+|   │
+│   ├── docs
+|   │
+│   ├── output
+|   │
+│   ├── products
+|   │
+│   ├── util
+|   │
 │  ...
+|   │
 │   └── README.md
 └─────────────────────┘
 ```
