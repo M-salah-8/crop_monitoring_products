@@ -5,20 +5,21 @@ import rasterio
 import rasterio.warp
 import cdsapi
 
+from util.logs import logger
 
-def download_era5_hourly(reference_tif: str, metero_dir: str, date: datetime) -> None:
+
+def download_era5_hourly(crs, bounds, metero_dir: str, date: datetime) -> None:
     era5_file = join(metero_dir, "era5-hourly.grib")
     if exists(era5_file):
-        print("-----------era5 data already exists-----------")
+        logger.info("-----------era5 data already exists-----------")
     else:
-        print("-----------downloading era5 data-----------")
+        logger.info("-----------downloading era5 data-----------")
         previous_day = date - timedelta(days=1)
         year = [date.year.__str__()]
         months = [date.month.__str__().zfill(2)]
         days = [previous_day.day.__str__().zfill(2), date.day.__str__().zfill(2)]
-        src = rasterio.open(reference_tif)
-        bbox = rasterio.warp.transform_bounds(src.crs, 'EPSG:4326', *src.bounds)
-        bounds = int(bbox[3]+1), int(bbox[0]), int(bbox[1]), int(bbox[2]+1)
+        bbox = rasterio.warp.transform_bounds(crs, 'EPSG:4326', *bounds)
+        era5_bounds = int(bbox[3]+1), int(bbox[0]), int(bbox[1]), int(bbox[2]+1)
 
         dataset = "reanalysis-era5-single-levels"
         request = {
@@ -45,8 +46,8 @@ def download_era5_hourly(reference_tif: str, metero_dir: str, date: datetime) ->
                 '2m_temperature',
                 'surface_solar_radiation_downwards',
                 ],
-            'area': bounds
+            'area': era5_bounds
         }
         client = cdsapi.Client()
         client.retrieve(dataset, request, era5_file)
-        print("-----------downloaded-----------")
+        logger.info("-----------downloaded-----------")

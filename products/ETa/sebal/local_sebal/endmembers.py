@@ -16,7 +16,6 @@
 #----------------------------------------------------------------------------------------#
 
 #PYTHON PACKAGES
-import rasterio
 import numpy as np
 from numpy.typing import NDArray
 
@@ -31,43 +30,38 @@ from numpy.typing import NDArray
 #NDVI HOT = 10%
 #TS HOT = 20%
 
-#SELECT COLD PIXEL
+# SELECT COLD PIXEL
 def fexp_cold_pixel(
-    image: dict[str, str], p_top_NDVI: int, p_coldest_Ts: int
+    pos_ndvi: NDArray[np.float32],
+    lst_nw: NDArray[np.float32],
+    ndvi: NDArray[np.float32],
+    p_top_NDVI: int,
+    p_coldest_Ts: int,
 ) -> tuple[dict, float]:
-    image_mask: NDArray[np.bool_] = np.load(image["MASK"])
-    arrays: dict[str, NDArray[np.float32]] = {}
-    #SELECT COLD PIXEL
-    bands = ['NDVI_NEG', 'LST_NW', 'NDVI']
-    array = None
-    for band in bands:
-        src = rasterio.open(image[band])
-        array = src.read(1).astype(np.float32)
-        array[image_mask] = np.nan
-        arrays[band] = array.copy()
-    del array
 
-    #IDENTIFY THE TOP % NDVI PIXELS
-    n_perc_top_NDVI= np.nanpercentile(arrays['NDVI_NEG'], p_top_NDVI)
+    ndvi_neg =  pos_ndvi * -1
 
-    #UPDATE MASK WITH NDVI VALUES
-    i_top_NDVI= arrays['NDVI_NEG'].copy()
+    # IDENTIFY THE TOP % NDVI PIXELS
+    n_perc_top_NDVI= np.nanpercentile(ndvi_neg, p_top_NDVI)
+
+    i_top_NDVI = ndvi_neg
     i_top_NDVI[i_top_NDVI > n_perc_top_NDVI] = np.nan
     lower, upper = np.nanpercentile(i_top_NDVI, 40), np.nanpercentile(i_top_NDVI, 60)
     i_top_NDVI[i_top_NDVI < lower] = np.nan
     i_top_NDVI[i_top_NDVI > upper] = np.nan
+
     #SELECT THE COLDEST TS FROM PREVIOUS NDVI GROUP
-    lst_top_NDVI= np.where(np.isnan(i_top_NDVI), np.nan, arrays['LST_NW'])
+    lst_top_NDVI= np.where(np.isnan(i_top_NDVI), np.nan, lst_nw)
     n_perc_low_LST= np.nanpercentile(lst_top_NDVI, p_coldest_Ts)
 
     #UPDATE MASK WITH LST VALUES
     i_cold_lst= lst_top_NDVI.copy()
     i_cold_lst[i_cold_lst > n_perc_low_LST] = np.nan
 
-    #FILTERS    ### ??
+    # FILTERS    ### ??
     c_lst_cold20 = i_cold_lst.copy()
     c_lst_cold20[c_lst_cold20 < 200] = np.nan
-    c_lst_cold20_int=np.round(c_lst_cold20)
+    c_lst_cold20_int = np.round(c_lst_cold20)
 
     lower, upper = np.nanpercentile(c_lst_cold20, 40), np.nanpercentile(c_lst_cold20, 60)
     c_lst_cold20[c_lst_cold20 < lower] = np.nan
@@ -81,47 +75,42 @@ def fexp_cold_pixel(
     index = np.random.choice(len(non_nan_indices[0]))
     i_0, i_1 = non_nan_indices[0][index], non_nan_indices[1][index]
 
-    n_Ts_cold: float = float(arrays['LST_NW'][i_0, i_1])
+    n_Ts_cold: float = float(lst_nw[i_0, i_1])
     # n_long_cold = ee.Number(fc_cold_pix.aggregate_first('longitude'))
     # n_lat_cold = ee.Number(fc_cold_pix.aggregate_first('latitude'))
-    n_ndvi_cold = arrays['NDVI'][i_0, i_1]
+    n_ndvi_cold = ndvi[i_0, i_1]
 
-    #CREATE A DICTIONARY WITH THOSE RESULTS
     d_cold_pixel = {
-            'ndvi': n_ndvi_cold,
-            'index': [i_0, i_1],
-            'sum': n_count_final_cold_pix}
+        "ndvi": n_ndvi_cold,
+        "index": [i_0, i_1],
+        "sum": n_count_final_cold_pix,
+    }
 
-    del(arrays, n_perc_top_NDVI, i_top_NDVI, lst_top_NDVI, n_perc_low_LST, i_cold_lst, c_lst_cold20, n_count_final_cold_pix, non_nan_indices, index, n_ndvi_cold)
-    #RETURN DICTIONARY
     return d_cold_pixel, n_Ts_cold
+
 
 #SELECT HOT PIXEL
 def fexp_hot_pixel(
-    image: dict[str, str], p_lowest_NDVI: int, p_hottest_Ts: int
+    pos_ndvi: NDArray[np.float32],
+    lst: NDArray[np.float32],
+    G: NDArray[np.float32],
+    rn: NDArray[np.float32],
+    ndvi: NDArray[np.float32],
+    lst_nw: NDArray[np.float32],
+    p_lowest_NDVI: int,
+    p_hottest_Ts: int,
 ) -> dict:
-    image_mask: NDArray[np.bool_] = np.load(image["MASK"])
-    arrays: dict[str, NDArray[np.float32]] = {}
-    #SELECT HOT PIXEL
-    bands = ["POS_NDVI", "LST_NEG", "INT", "G", "RN", "NDVI", "NDVI_NEG", "LST_NW"]
-    array = None
-    for band in bands:
-        with rasterio.open(image[band]) as src:
-            array = src.read(1).astype(np.float32)
-            array[image_mask] = np.nan
-            arrays[band] = array.copy()
-    del array
-
     #IDENTIFY THE DOWN % NDVI PIXELS
-    n_perc_low_NDVI= np.nanpercentile(arrays["POS_NDVI"], p_lowest_NDVI)
+    n_perc_low_NDVI= np.nanpercentile(pos_ndvi, p_lowest_NDVI)
 
     #UPDATE MASK WITH NDVI VALUES
-    i_low_NDVI= arrays["POS_NDVI"].copy()
+    i_low_NDVI= pos_ndvi.copy()
     i_low_NDVI[i_low_NDVI > n_perc_low_NDVI] = np.nan
     lower_ndvi = np.nanpercentile(i_low_NDVI, 95)
     i_low_NDVI[i_low_NDVI < lower_ndvi] = np.nan
     #SELECT THE HOTTEST TS FROM PREVIOUS NDVI GROUP
-    lst_low_NDVI= np.where(np.isnan(i_low_NDVI), np.nan, arrays["LST_NEG"])
+    lst_neg = lst * -1
+    lst_low_NDVI= np.where(np.isnan(i_low_NDVI), np.nan, lst_neg)
     n_perc_top_lst= np.nanpercentile(lst_low_NDVI, p_hottest_Ts)
 
     c_lst_hotpix= lst_low_NDVI.copy()
@@ -140,21 +129,37 @@ def fexp_hot_pixel(
     index = np.random.choice(len(non_nan_indices[0]))
     i_0, i_1 = non_nan_indices[0][index], non_nan_indices[1][index]
 
-    n_Ts_hot = arrays["LST_NW"][i_0, i_1]
+    n_Ts_hot = lst_nw[i_0, i_1]
     # n_long_hot = ee.Number(fc_hot_pix.aggregate_first("longitude"))
-    # n_lat_hot = ee.Number(fc_hot_pix.aggregate_first("latitude"))  n_ndvi_hot = arrays["NDVI"][i_0, i_1]
-    n_ndvi_hot = arrays["NDVI"][i_0, i_1]
-    n_Rn_hot = arrays["RN"][i_0, i_1]
-    n_G_hot = arrays["G"][i_0, i_1]
+    # n_lat_hot = ee.Number(fc_hot_pix.aggregate_first("latitude"))  n_ndvi_hot = ndvi[i_0, i_1]
+    n_ndvi_hot = ndvi[i_0, i_1]
+    n_Rn_hot = rn[i_0, i_1]
+    n_G_hot = G[i_0, i_1]
     #CREATE A DICTIONARY WITH THOSE RESULTS
     d_hot_pixel = {
-            "temp": n_Ts_hot,
-            "index": [i_0, i_1],
-            "Rn": n_Rn_hot,
-            "G": n_G_hot,
-            "ndvi": n_ndvi_hot,
-            "sum": n_count_final_hot_pix}
+        "temp": n_Ts_hot,
+        "index": [i_0, i_1],
+        "Rn": n_Rn_hot,
+        "G": n_G_hot,
+        "ndvi": n_ndvi_hot,
+        "sum": n_count_final_hot_pix,
+    }
 
-    del(arrays, i_low_NDVI, lst_low_NDVI, c_lst_hotpix, c_lst_hotpix_int, non_nan_indices)
-    #RETURN DICTIONARY
     return d_hot_pixel
+
+
+def hot_cold_pixels_helpers(
+    ndvi: NDArray[np.float32], ndwi: NDArray[np.float32], lst: NDArray[np.float32]
+) -> tuple[NDArray[np.float32], NDArray[np.float32]]:
+    pos_ndvi = ndvi.copy()
+    pos_ndvi[pos_ndvi <= 0] = np.nan
+    # ndvi_is_valid = np.full(ndvi.shape, 1, np.float32)
+    # ndvi_is_valid[np.isnan(ndvi)] = np.nan
+    # sd_ndvi = np.full(ndvi.shape, 1, np.float32)
+    # sd_ndvi[np.isnan(ndvi)] = np.nan
+    # TODO: use lst_dem ??
+    lst_nw = lst.copy()
+    lst_nw[ndwi > 0] = np.nan
+
+    return pos_ndvi, lst_nw
+

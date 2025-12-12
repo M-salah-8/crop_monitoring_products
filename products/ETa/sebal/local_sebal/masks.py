@@ -16,62 +16,49 @@
 #----------------------------------------------------------------------------------------#
 
 #PYTHON PACKAGES
-from os.path import join
-from numpy.typing import NDArray
-import rasterio
 import numpy as np
+from numpy.typing import NDArray
 
-from .funcs import save_to_image
+from util.logs import logger
 
-#CLOUD REMOVAL
 
-#FUNCTION TO MASK CLOUDS IN LANDSAT 5 AND 7 FOR SURFACE REFLECTANCE
+# FUNCTION FO MASK CLOUD IN LANDSAT 8 FOR SURFACE REFELCTANCE    ### reduce none values
+def _f_cloudMaskL_8_9_SR(pixel_qa: NDArray[np.uint16]) -> NDArray[np.bool_]:
+    """Returns a cloud mask"""
+    cloud_mask = (pixel_qa & ((1 << 1) | (1 << 3) | (1 << 4))) != 0
+    return cloud_mask
 
-def f_cloudMaskL457_SR(image):  # TODO: delete
-    quality = image.select('pixel_qa')
-    c01 = quality.eq(66)#CLEAR, LOW CONFIDENCE CLOUD
-    c02 = quality.eq(68)#WATER, LOW CONFIDENCE CLOUD
-    mask = c01.Or(c02)
-    return image.updateMask(mask)
 
-#FUNCTION FO MASK CLOUD IN LANDSAT 8 FOR SURFACE REFELCTANCE    ### reduce none values
-def f_cloudMaskL_8_9_SR(image: dict[str, str], cal_bands_dr: str) -> None:
-    with rasterio.open(image["pixel_qa"]) as src:
-        qa_band = src.read(1)
-        cloud_mask = (qa_band & ((1 << 1) | (1 << 3) | (1 << 4))) != 0
-    with rasterio.open(image["B"]) as src:
-        # Read the QA_PIXEL band
-        b_array = src.read(1)
-        nodata = src.nodata
-        nodata_mask = b_array == nodata
-        # Create a masked image
-    mask: NDArray[np.bool_] = cloud_mask | nodata_mask
-    np.save(join(cal_bands_dr, "mask.npy"), mask)
-    image["MASK"] = join(cal_bands_dr, "mask.npy")
+def f_final_mask(
+    pixel_qa: NDArray[np.uint16], blue: NDArray[np.float32], nodata: float | int
+) -> NDArray[np.bool_]:
+    """Returns a mask that contains nodata and cloud locations"""
+    cloud_mask = _f_cloudMaskL_8_9_SR(pixel_qa)
+    if np.isnan(nodata):
+        nodata_mask = np.isnan(blue)
+    else:
+        nodata_mask = blue == nodata
+
+    mask = cloud_mask | nodata_mask
+    return mask
 
 
 #ALBEDO
 #USING TASUMI ET AL. (2008) METHOD FOR LANDSAT 8
-#COEFFICIENTS FROM KE ET AL. (2016)
-def f_albedoL_8_9(image: dict[str, str], meta: dict, cal_bands_dr: str) -> None:
-    image_mask: NDArray[np.bool_] = np.load(image["MASK"])
-    bands = ["UB", "B", "GR", "R", "NIR", "SWIR_1", "SWIR_2"]
-    arrays: dict[str, NDArray[np.float32]] = {}
-    array = None
-    for band in bands:
-        with rasterio.open(image[band]) as src:
-            array = src.read(1).astype(np.float32)
-            array[image_mask] = np.nan
-            arrays[band] = array.copy() * 0.0000275 - 0.2
-    del array
+# COEFFICIENTS FROM KE ET AL. (2016)
+def f_albedoL_8_9(
+b_ca, b_blue, b_green, b_red, b_nir, b_swir_1, b_swir_2
+) -> NDArray[np.float32]:
+
+    logger.info("calculate albedo")
+
     alfa = (
-        (0.130 * arrays["UB"])
-        + (0.115 * arrays["B"])
-        + (0.143 * arrays["GR"])
-        + (0.180 * arrays["R"])
-        + (0.281 * arrays["NIR"])
-        + (0.108 * arrays["SWIR_1"])
-        + (0.042 * arrays["SWIR_2"])
+        (0.130 * b_ca)
+        + (0.115 * b_blue)
+        + (0.143 * b_green)
+        + (0.180 * b_red)
+        + (0.281 * b_nir)
+        + (0.108 * b_swir_1)
+        + (0.042 * b_swir_2)
     )
-    save_to_image(image, cal_bands_dr, meta, alfa, "ALFA")
-    del(arrays, alfa)
+    return alfa
