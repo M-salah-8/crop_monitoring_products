@@ -54,7 +54,7 @@ FAO’s portal to monitor Water Productivity through Open access of Remotely (Wa
 
 ### SEBAL - actual evapotranspiration (ETa)
 
-![SEBAL - actual evapotranspiration (ETa)](assets/lai.gif)
+![SEBAL - actual evapotranspiration (ETa)](assets/eta.gif)
 
 # Project Structure
 
