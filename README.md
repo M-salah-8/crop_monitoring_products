@@ -1,90 +1,110 @@
 # Disclaimer
+
 * This code is for educational purposes and should not be used in production environments as it is untested.
 
-# new version
+# New version
+
 * Currently, the project consists of a few products, but it will grow in the future.
 * Currently focusing on local_sebal package with minor updates to other products.
 * Analysis and visualisation will be improved upon and added again later.
 
-# products
+# Products
+
 ## [geeSEBAL](docs/sebal.md)
+
 Surface Energy Balance Algorithm for Land (SEBAL), a model for estimating evapotranspiration (ET) from energy balance equation.\
 geeSEBAL is an open-source implementation of (SEBAL) using Google Earth Engine (GEE).\
-outputs:
+Outputs:
+
 * ETa = actual evapotranspiration
 * NDVI = Normalized Difference Vegetation Index
 * RGB = red,green,blue image
 
 ## [SEBAL](docs/sebal.md)
+
 Surface Energy Balance Algorithm for Land (SEBAL), a model for estimating evapotranspiration (ET) from energy balance equation.\
-outputs:
+Outputs:
+
 * ETa = actual evapotranspiration
 * NDVI = Normalized Difference Vegetation Index
 * RGB = red,green,blue image
 
-## [growth](docs/growth.md)
+## [Growth](docs/growth.md)
+
 Using Sentinel Application Platform (SNAP) command line feature to estimate leaf area index (LAI).
-outputs:
+Outputs:
+
 * LAI = leaf area index
 * NDVI = Normalized Difference Vegetation Index
 
 ## [WaPOR data](https://www.fao.org/in-action/remote-sensing-for-water-productivity/en)
+
 FAO’s portal to monitor Water Productivity through Open access of Remotely (WaPOR) sensed derived data, monitors and reports on agriculture water productivity over Africa and the Near East.
 
 ## [SEN-ET](docs/set-et.md)
+
 * New.
 * Not documented yet.
 
-# Folders layout
-```bash
-┌─── project_folder ───┐
-│   ├── data
-│   │   ├── areas
-│   │   │   ├── project
-│   │   │  ...  ├── aoi.geojson
-│   │   │       ├── field.shp
-│   │   │       └── ret.geojson
-|   │   │
-│   │   ├── landsat
-│   │   │   └── images
-|   │   │       ├── 2024-06-17
-|   │   │       |   └── C09_L2SP_173048_20240617_20240618_02_T1
-|   │   │       ├── 2024-07-11
-|   │   │       |   └── C08_L2SP_173048_20240711_20240719_02_T1
-|   │   │      ...
-|   │   │
-│   │   ├── sentinel_2
-│   │   │   └── images
-|   │   │       ├── 2023_11_04
-|   │   │       |   └── S2B_MSIL2A_20231104T083029_N0509_R021_T35QRA_20231104T101901.SAFE.zip
-|   │   │       ├── 2023_11_14
-|   │   │       |   └── S2B_MSIL2A_20231114T083119_N0509_R021_T35QRA_20231114T102315.SAFE.zip
-|   │   │      ...
-|   │   │
-│   │   ├── sentinel_3
-│   │   │   └── images
-|   │   │       ├── 2023_12_14
-|   │   │       |   └── S3A_SL_2_LST..._PS1_O_NT_004.SEN3
-|   │   │       ├── 2023_12_24
-|   │   │       |   └── S3B_SL_2_LST..._PS2_O_NT_004.SEN3
-|   │   │      ...
-|   │   │
-|   │   │
-|   │   └── strm_30m.tif
-|   │
-│   ├── docs
-|   │
-│   ├── output
-|   │
-│   ├── products
-|   │
-│   ├── util
-|   │
-│  ...
-|   │
-│   └── README.md
-└─────────────────────┘
+## Examples
+
+### Growth - Leaf Area Index (LAI)
+
+![Growth - Leaf Area Index (LAI)](assets/lai.gif)
+
+### SEBAL - actual evapotranspiration (ETa)
+
+![SEBAL - actual evapotranspiration (ETa)](assets/lai.gif)
+
+# Project Structure
+
+```
+project_directory/
+├── data
+│   ├── areas
+│   │   ├── project
+│   │  ...  ├── aoi.geojson
+│   │       ├── field.shp
+│   │       └── ret.geojson
+│   │
+│   ├── landsat
+│   │   └── images
+│   │       ├── 2024-06-17
+│   │       |   └── C09_L2SP_173048_20240617_20240618_02_T1
+│   │       ├── 2024-07-11
+│   │       |   └── C08_L2SP_173048_20240711_20240719_02_T1
+│   │      ...
+│   │
+│   ├── sentinel_2
+│   │   └── images
+│   │       ├── 2023_11_04
+│   │       |   └── S2B_MSIL2A_20231104T083029_N0509_R021_T35QRA_20231104T101901.SAFE.zip
+│   │       ├── 2023_11_14
+│   │       |   └── S2B_MSIL2A_20231114T083119_N0509_R021_T35QRA_20231114T102315.SAFE.zip
+│   │      ...
+│   │
+│   ├── sentinel_3
+│   │   └── images
+│   │       ├── 2023_12_14
+│   │       |   └── S3A_SL_2_LST..._PS1_O_NT_004.SEN3
+│   │       ├── 2023_12_24
+│   │       |   └── S3B_SL_2_LST..._PS2_O_NT_004.SEN3
+│   │      ...
+│   │
+│   │
+│   └── strm_30m.tif
+│
+├── docs
+│
+├── products
+│
+├── util
+│
+...
+│
+└── README.md
 ```
 
-### contact:
-Mohammed Salah (mohammedalmak98@gmail.com)  
+## Contacts
+
+Mohammed Salah (mohammedalmak98@gmail.com)
